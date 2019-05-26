@@ -1,4 +1,4 @@
-Used nanoflann, C++11 header-only library for building KD-Trees of datasets - BSD license
+Used nanoflann(https://github.com/jlblancoc/nanoflann), C++11 header-only library for building KD-Trees of datasets - BSD license
 
 # Description of files - 
 2 files of nanoflann included in the project as it is -

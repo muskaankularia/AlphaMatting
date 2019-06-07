@@ -1,17 +1,11 @@
 #include <bits/stdc++.h>
 #include <iostream>
-#include "Eigen/Dense"
 #include <opencv2/opencv.hpp>
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
 #include "nanoflann.hpp"
 #include "KDTreeVectorOfVectorsAdaptor.h"
-#include <ctime>
-#include <cstdlib>
 using namespace nanoflann;
 using namespace std;
 using namespace cv;
-using namespace Eigen;
 
 const int dim = 5;
 
@@ -75,8 +69,8 @@ void kdtree_CM(Mat &img, my_vector_of_vectors_t& indm, my_vector_of_vectors_t& s
 		mat_index.index->findNeighbors(resultSet, &samples[*it][0], nanoflann::SearchParams(10));	
 
 		// cout << "knnSearch(nn="<<num_results<<"): \n";
-		indm[i].resize(num_results);
-		for (int j = 1; j < num_results+1; j++){
+		indm[i].resize(num_results-1);
+		for (int j = 1; j < num_results; j++){
 			// cout << "ret_index["<<j<<"]=" << ret_indexes[j] << " out_dist_sqr=" << out_dists_sqr[j] << endl;
 			indm[i][j-1] = ret_indexes[j];
 		}
@@ -93,33 +87,50 @@ void lle(my_vector_of_vectors_t& indm, my_vector_of_vectors_t& samples, float ep
 	my_vector_of_vectors_t wcm;
 	wcm.resize(n);
 	
-	MatrixXf C = MatrixXf::Zero(k, k);
-	VectorXf rhs = VectorXf::Ones(k);
+	Mat C(20, 20, DataType<float>::type), rhs(20, 1, DataType<float>::type), Z(3, 20, DataType<float>::type), weights(20, 1, DataType<float>::type);
+	C = 0;
+	rhs = 1;
 
-	MatrixXf Z(dim-2, k);
-	VectorXf weights;
 	int i, ind = 0; 
+	cout<<n<<" "<<k<<endl;
 	for(unordered_set<int>::iterator it = unk.begin(); it != unk.end(); it++){
 		// filling values in Z
 		i = *it;
 		int index_nbr;
 		for(int j = 0; j < k; j++){
 			index_nbr = indm[ind][j];
-			for(int p = 0; p < dim-2; p++){
-				Z(p,j) = samples[index_nbr][p] - samples[i][p];
-			}
+			for(int p = 0; p < dim-2; p++)
+				Z.at<float>(p,j) = samples[index_nbr][p] - samples[i][p];
 		}
-		// cout<<"done"<<endl;
-		// adding some constant to ensure invertible matrices
-		C = Z.transpose()*Z;
-		C.diagonal().array() += eps;
-		weights = C.ldlt().solve(rhs);
-		weights /= weights.sum();
+		
+
+		// C1 = Z1.transpose()*Z1;
+		// C1.diagonal().array() += eps;
+		// weights1 = C1.ldlt().solve(rhs1);
+		// weights1 /= weights1.sum();
+		// cout<<weights1<<endl;
+		// exit(0);
+
+		
+		transpose(Z,C);	
+		C = C*Z;
+		for(int p = 0; p < k; p++)
+			C.at<float>(p,p) += eps;
+		// cout<<"determinant: "<<determinant(C)<<endl;
+		solve(C, rhs, weights, DECOMP_CHOLESKY);
+		float sum = 0;
+
+		for(int j = 0; j < k; j++)
+			sum += weights.at<float>(j,0);
+		for(int j = 0; j < k; j++)
+			weights.at<float>(j,0) /= sum;
+		// cout<<weights;
 		wcm[ind].resize(k);
 		for(int j = 0; j < k; j++)
-			wcm[ind][j] = weights[j];
+			wcm[ind][j] = weights.at<float>(j,0);
 		
 		ind++;
+		
 	}
 
 }
@@ -150,3 +161,57 @@ int main()
 	float eps = 0.001;
 	lle(indm, samples, eps, unk);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

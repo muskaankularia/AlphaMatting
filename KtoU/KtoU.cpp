@@ -1,17 +1,10 @@
 #include <bits/stdc++.h>
-#include <iostream>
-#include "Eigen/Dense"
 #include <opencv2/opencv.hpp>
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
 #include "nanoflann.hpp"
 #include "KDTreeVectorOfVectorsAdaptor.h"
-#include <ctime>
-#include <cstdlib>
 using namespace nanoflann;
 using namespace std;
 using namespace cv;
-using namespace Eigen;
 
 const int dim = 5;
 
@@ -137,12 +130,9 @@ void lle_KtoU(my_vector_of_vectors_t& indm, my_vector_of_vectors_t& fv_unk, my_v
 	my_vector_of_vectors_t wcm;
 	wcm.resize(n);
 
-	MatrixXf C = MatrixXf::Zero(k, k);
-	VectorXf rhs = VectorXf::Ones(k);
-
-	MatrixXf Z(dim-2, k);
-	VectorXf weights;
-
+	Mat C(14, 14, DataType<float>::type), rhs(14, 1, DataType<float>::type), Z(3, 14, DataType<float>::type), weights(14, 1, DataType<float>::type);
+	C = 0;
+	rhs = 1;
 	cout<<k<<" "<<n<<endl;
 	for(int i = 0; i < n; i++){
 		// filling values in Z
@@ -150,24 +140,45 @@ void lle_KtoU(my_vector_of_vectors_t& indm, my_vector_of_vectors_t& fv_unk, my_v
 		for(j = 0; j < k/2; j++){
 			index_nbr = indm[i][j];
 			for(p = 0; p < dim-2; p++)
-				Z(p,j) = fv_fg[index_nbr][p] - fv_unk[i][p];
-			
+				Z.at<float>(p, j) = fv_fg[index_nbr][p] - fv_unk[i][p];
 		}
 
 		for(j = k/2; j < k; j++){
 			index_nbr = indm[i][j];
 			for(p = 0; p < dim-2; p++)
-				Z(p,j) = fv_bg[index_nbr][p] - fv_unk[i][p];
-			
+				Z.at<float>(p, j) = fv_bg[index_nbr][p] - fv_unk[i][p];
 		}
+		// cout<<"ours\n";
+		// cout<<Z<<endl<<endl<<Z1<<endl;
+		// exit(0);
+
+
 		// adding some constant to ensure invertible matrices
-		C = Z.transpose()*Z;
-		C.diagonal().array() += eps;
-		weights = C.ldlt().solve(rhs);
-		weights /= weights.sum();
-		// cout<<weights<<endl;
-		wcm[i].resize(k);
-		// cout<<weights<<endl;
+		// C = Z.transpose()*Z;
+		// C.diagonal().array() += eps;
+		// weights = C.ldlt().solve(rhs);
+		// weights /= weights.sum();
+		// // cout<<weights<<endl;
+		// wcm[i].resize(k);
+
+		
+
+		transpose(Z,C);	
+		C = C*Z;
+		for(int p = 0; p < k; p++)
+			C.at<float>(p,p) += eps;
+		// cout<<"determinant: "<<determinant(C)<<endl;
+		solve(C, rhs, weights, DECOMP_CHOLESKY);
+		float sum = 0;
+
+		for(int j = 0; j < k; j++)
+			sum += weights.at<float>(j,0);
+		for(int j = 0; j < k; j++)
+			weights.at<float>(j,0) /= sum;
+
+		// // cout<<weights<<endl;
+
+
 
 		// calculating confidence values
 		float fweight = 0, bweight = 0, nu = 0; 
@@ -177,28 +188,27 @@ void lle_KtoU(my_vector_of_vectors_t& indm, my_vector_of_vectors_t& fv_unk, my_v
 			bcol[j] = 0;
 		}
 		for(j = 0; j < k/2; j++){
-			fweight += weights[j];
+			fweight += weights.at<float>(j,0);
 			index_nbr = indm[i][j];
-			for(p = 0; p < dim-2; p++){
-				fcol[p] += weights[j] * fv_fg[index_nbr][p];
-			}
+			for(p = 0; p < dim-2; p++)
+				fcol[p] += weights.at<float>(j,0) * fv_fg[index_nbr][p];
 		}
 		
 		for(j = k/2; j < k; j++){
-			bweight += weights[j];
+			bweight += weights.at<float>(j,0);
 			index_nbr = indm[i][j];
-			for(p = 0; p < dim-2; p++){
-				bcol[p] += weights[j] * fv_bg[index_nbr][p];
-			}
+			for(p = 0; p < dim-2; p++)
+				bcol[p] += weights.at<float>(j,0) * fv_bg[index_nbr][p];
 		}
 		float norm;
 		for(j = 0; j < 3; j++){
 			norm = fcol[j]/fweight - bcol[j]/bweight;
 			nu += norm * norm;
 		}
+
 		// cout<<fweight<<" "<<bweight<<" "<<fweight+bweight<<" "<<nu<<endl;
-		// exit(0);
 		nu /= 3;
+		
 	}
 }
 
